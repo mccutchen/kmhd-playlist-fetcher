@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>KMHD Playlist Fetcher</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            text-align: center;
+            color: #333;
+        }
+        h1 {
+            margin-bottom: 20px;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            max-width: 60em;
+            margin: 0 auto;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .hour-header {
+            background-color: #eee;
+            font-weight: bold;
+            text-align: center;
+        }
+        .album-cover {
+            display: block;
+            margin: 0 auto;
+            width: 100px;
+            height: 100px;
+        }
+        .album-placeholder {
+            display: block;
+            margin: 0 auto;
+            width: 100px;
+            height: 100px;
+            background-color: #eee;
+        }
+        .start-time {
+            white-space: nowrap;
+            width: 1%;
+            text-align: right;
+        }
+        .column-details {
+            width: 99%;
+            word-wrap: break-word;
+        }
+        .bold {
+            font-weight: bold;
+        }
+        .small {
+            font-size: 0.9em;
+            font-style: italic;
+        }
+        #loading {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>KMHD Playlist Fetcher</h1>
+
+    <form id="dateForm" action="" method="get">
+        <input type="date" id="dateInput" name="date" required>
+        <button type="submit">Fetch Playlist</button>
+    </form>
+
+    <div id="loading">Loading...</div>
+
+    <table id="playlistTable">
+        <tbody>
+        </tbody>
+    </table>
+
+    <script>
+        function fetchPlaylist(date) {
+            document.getElementById('loading').style.display = 'block';
+            const apiUrl = `https://www.kmhd.org/pf/api/v3/content/fetch/playlist?query=${encodeURIComponent(JSON.stringify({ day: date }))}`;
+            fetch(apiUrl)
+                .then(response => response.json())
+                .then(data => {
+                    renderPlaylist(data);
+                    document.getElementById('loading').style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Error fetching playlist:', error);
+                    document.getElementById('loading').style.display = 'none';
+                });
+        }
+
+        function renderPlaylist(data) {
+            const tbody = document.querySelector('#playlistTable tbody');
+            tbody.innerHTML = '';  // Clear existing rows
+            let lastHour = null;
+
+            data.forEach(item => {
+                const startTime = new Date(item._start_time);
+                const options = { hour: 'numeric', minute: 'numeric', hour12: true };
+                const localTime = startTime.toLocaleTimeString([], options).replace(/^0/, '');
+                const currentHour = startTime.toLocaleTimeString([], { hour: 'numeric', hour12: true }).replace(/^0/, '');
+
+                if (lastHour !== currentHour) {
+                    const hourHeaderRow = document.createElement('tr');
+                    const hourHeaderCell = document.createElement('td');
+                    hourHeaderCell.colSpan = 3;
+                    hourHeaderCell.className = 'hour-header';
+                    hourHeaderCell.textContent = currentHour;
+                    hourHeaderRow.appendChild(hourHeaderCell);
+                    tbody.appendChild(hourHeaderRow);
+                    lastHour = currentHour;
+                }
+
+                const row = document.createElement('tr');
+                const albumCover = item.artworkUrl100 ? `<img src="${item.artworkUrl100}" alt="Album Cover" width="100" height="100" class="album-cover">` : `<div class="album-placeholder"></div>`;
+                const trackLink = item.trackViewUrl ? `<a href="${item.trackViewUrl}" target="_blank" class="bold">${item.trackName}</a>` : `<span class="bold">${item.trackName}</span>`;
+                const artistLink = item.artistViewUrl ? `<a href="${item.artistViewUrl}" target="_blank" class="bold">${item.artistName}</a>` : `<span class="bold">${item.artistName}</span>`;
+                const albumLink = item.collectionViewUrl ? `<a href="${item.collectionViewUrl}" target="_blank" class="bold">${item.collectionName}</a>` : `<span class="bold">${item.collectionName}</span>`;
+
+                row.innerHTML = `
+                    <td class="start-time">${localTime}</td>
+                    <td>${albumCover}</td>
+                    <td class="column-details">
+                        ${trackLink} by ${artistLink}
+                        <br>
+                        <span class="small">from ${albumLink}</span>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function getYesterday() {
+            const date = new Date();
+            date.setDate(date.getDate() - 1);
+            return date.toISOString().split('T')[0];
+        }
+
+        // Check if the page loaded with a date parameter and fetch playlist if true
+        window.addEventListener('load', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            let date = urlParams.get('date');
+            if (!date) {
+                date = getYesterday();
+            }
+            document.getElementById('dateInput').value = date;
+            fetchPlaylist(date);
+        });
+    </script>
+
+</body>
+</html>
